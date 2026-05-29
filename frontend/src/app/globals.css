@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #f8fafc;
   --foreground: #0f172a;
@@ -69,8 +71,10 @@ body {
 }
 
 .gradient-bg {
-  background: radial-gradient(circle at 10% 20%, rgba(20, 184, 166, 0.15) 0%, transparent 40%),
-              radial-gradient(circle at 90% 80%, rgba(15, 118, 110, 0.15) 0%, transparent 40%);
+  background-color: var(--background);
+  background-image: radial-gradient(circle at 10% 20%, rgba(20, 184, 166, 0.15) 0%, transparent 40%),
+                    radial-gradient(circle at 90% 80%, rgba(15, 118, 110, 0.15) 0%, transparent 40%);
+  background-attachment: fixed;
 }
 
 .glow-btn {

@@ -63,6 +63,7 @@ Audit and remediation of the deliberately-imperfect **Hospital Appointment & Que
 - Added `@@unique([doctorId, appointmentDate])` and `@@unique([doctorId, queueDate, tokenNumber])`; added indexes on FKs, status, and doctor filter columns; added a `queueDate` column.
 - Real SQL pagination (`where` + `skip`/`take` + parallel `count`).
 - `onDelete: Cascade` on relations + transactional delete.
+- Made the seed **idempotent** (clears data tables before inserting) so it can be re-run safely — the new unique constraint otherwise rejected duplicate appointments on a second run.
 
 **Frontend**
 - Interval cleanup via `useEffect` return + `isMounted` ref; all hooks hoisted above the guard.
@@ -70,6 +71,7 @@ Audit and remediation of the deliberately-imperfect **Hospital Appointment & Que
 - Debounced search (350ms); explicit physician selector for check-in; controlled walk-in inputs; `Array.isArray` guards; safer login validation and role-based default tab.
 - Centralised config (`NEXT_PUBLIC_API_BASE_URL`) and a single `apiFetch` client that unwraps the response envelope.
 - Built the three missing pages: `/patients/[id]/history-records`, `/patients/[id]`, `/register`.
+- Fixed a **background-rendering bug** that made the whole UI look bright/washed-out: `.gradient-bg` used the `background` shorthand, which reset the body's `background-color` to transparent so the teal glow rendered over white. Switched it to `background-image` + `background-color: var(--background)` so the glow layers over the theme's base; the app runs in its intended light theme.
 
 ---
 
@@ -97,6 +99,7 @@ Run against the Dockerised PostgreSQL (`docker compose up -d` → `prisma migrat
 - Receptionist `DELETE /patients/:id` → **403**. ✔
 - Appointments response carries embedded patient & doctor objects (N+1 gone). ✔
 - Invalid email / weak password → **400** with field details. ✔
+- `node prisma/seed.js` run **twice in a row** both succeed (idempotent seed). ✔
 - `npm run build` (frontend) passes with all routes, including the three new pages. ✔
 
 ---

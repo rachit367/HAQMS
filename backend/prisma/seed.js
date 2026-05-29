@@ -6,6 +6,12 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Seeding HAQMS database...');
 
+  await prisma.queueToken.deleteMany();
+  await prisma.appointment.deleteMany();
+  await prisma.patient.deleteMany();
+  await prisma.doctor.deleteMany();
+  console.log('🧹 Cleared existing data');
+
   // ─── Users ────────────────────────────────────────────────────────────────
   const hashedPassword = await bcrypt.hash('password123', 10);
 

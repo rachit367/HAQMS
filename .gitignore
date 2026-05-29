@@ -10,3 +10,6 @@ build/
 *.log
 .DS_Store
 desc.docx
+
+# Deployment (nginx, certbot, pm2, deploy scripts) — server-side only
+deploy/

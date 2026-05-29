@@ -29,7 +29,7 @@ Audit and remediation of the deliberately-imperfect **Hospital Appointment & Que
 
 52 issues total. Highlights by category:
 
-**Security (15)** — hardcoded JWT secret with public fallback; expiry ignored + 365-day tokens; plaintext passwords logged; bypassed admin authorization; SQL injection in doctor search; password hash returned in responses; stack/DB-error leakage; privilege escalation via client-supplied `role` on register; permissive CORS; no rate limiting; weak/absent input validation; secret committed in `.env.example`.
+**Security** — hardcoded JWT secret with public fallback; expiry ignored + 365-day tokens; plaintext passwords logged; bypassed admin authorization; SQL injection in doctor search; password hash returned in responses; stack/DB-error leakage; privilege escalation via client-supplied `role` on register; permissive CORS; no rate limiting; weak/absent input validation.
 
 **Backend performance & concurrency (5)** — N+1 queries in appointments; sequential awaits in doctor stats; nested-loop report with artificial sleeps; **race condition** producing duplicate queue tokens; new `PrismaClient` per route.
 
@@ -51,8 +51,9 @@ Audit and remediation of the deliberately-imperfect **Hospital Appointment & Que
 - Restored real admin authorization (`authorize('ADMIN')`); patient delete now returns 403 for non-admins.
 - Replaced `$queryRawUnsafe` string-building with Prisma's parameterised query builder — SQL injection closed.
 - Responses expose only a whitelisted user object (no password hash); a central error handler returns generic messages, logging detail server-side only.
-- `role` is no longer accepted from the client on register (forced to `RECEPTIONIST`).
-- CORS locked to the frontend origin; `helmet` enabled; `express-rate-limit` on auth + global; `zod` validation on all inputs; placeholder-only `.env.example` + `.gitignore`.
+- The register schema is `.strict()`, so sending any extra field (e.g. `role`) is **rejected with a 400**; the account role is always set to `RECEPTIONIST` server-side.
+- CORS locked to the frontend origin; `helmet` enabled; `express-rate-limit` on auth + global; `zod` validation on all inputs.
+- The public queue board (`GET /api/queue`) is no longer behind auth, so the waiting-room display loads without a login; check-in/status changes stay protected.
 
 **Performance & concurrency**
 - Appointments use a single `include` query (N+1 → 1); doctor stats run via `Promise.all`; the report uses `groupBy` aggregations (sleeps removed).
@@ -92,7 +93,8 @@ Audit and remediation of the deliberately-imperfect **Hospital Appointment & Que
 Run against the Dockerised PostgreSQL (`docker compose up -d` → `prisma migrate dev` → `node prisma/seed.js`):
 
 - Login returns the standard envelope with a short-lived token. ✔
-- `register` with `role: "ADMIN"` creates a **RECEPTIONIST**. ✔
+- `register` with a `role` field is **rejected with 400**; a clean body creates a RECEPTIONIST (201). ✔
+- `GET /api/queue` with no token returns **200** (public board works). ✔
 - SQL-injection payload in doctor search returns an empty, safe result. ✔
 - No `password` field in any user response. ✔
 - **8 concurrent check-ins → zero duplicate token numbers.** ✔

@@ -43,7 +43,7 @@ const createTokenWithRetry = async ({ patientId, doctorId, appointmentId }, atte
   return null;
 };
 
-router.get('/', authenticate, asyncHandler(async (req, res) => {
+router.get('/', asyncHandler(async (req, res) => {
   const { doctorId, status } = req.query;
 
   const where = {};

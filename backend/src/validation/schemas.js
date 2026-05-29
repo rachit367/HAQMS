@@ -13,7 +13,7 @@ const registerSchema = z.object({
   email,
   password,
   name: z.string().trim().min(1, 'Name is required'),
-});
+}).strict('Only email, password and name are allowed');
 
 const loginSchema = z.object({
   email,

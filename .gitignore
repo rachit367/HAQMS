@@ -11,5 +11,6 @@ build/
 .DS_Store
 desc.docx
 
-# Deployment (nginx, certbot, pm2, deploy scripts) — server-side only
+# Deployment (nginx, certbot, pm2, deploy scripts) — server-side only, local only
 deploy/
+docs/superpowers/specs/2026-05-29-vps-deployment-nginx-certbot-design.md

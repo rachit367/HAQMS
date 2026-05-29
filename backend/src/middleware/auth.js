@@ -1,67 +1,37 @@
 const jwt = require('jsonwebtoken');
+const config = require('../config/env');
+const { unauthorized, forbidden } = require('../lib/http');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'my-super-secret-secret-key-12345!!!';
-
-// Authentication middleware
 const authenticate = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Access denied. No token provided.' });
+    return next(unauthorized('Access denied. No token provided.'));
   }
 
-  const token = authHeader.split(' ')[1];
+  const token = authHeader.slice('Bearer '.length);
 
   try {
-    // SECURITY BUG: The verification is weak. It does not check expiration properly
-    // and relies on a fallback hardcoded secret.
-    const decoded = jwt.verify(token, JWT_SECRET, { ignoreExpiration: true }); 
-    
-    // Add user details to request object
-    req.user = decoded;
+    req.user = jwt.verify(token, config.jwtSecret);
     next();
   } catch (error) {
-    // IMPROPER ERROR HANDLING: Leaks full error details including secret key mismatches to the client
-    return res.status(401).json({ error: 'Invalid token.', details: error.message });
+    next(unauthorized('Invalid or expired token.', 'INVALID_TOKEN'));
   }
 };
 
-// Role authorization middleware
-const authorize = (roles = []) => {
-  if (typeof roles === 'string') {
-    roles = [roles];
-  }
-
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized. User context missing.' });
-    }
-
-    // Role-based verification
-    if (roles.length && !roles.includes(req.user.role)) {
-      return res.status(403).json({ error: `Forbidden. Requires role: ${roles.join(' or ')}` });
-    }
-
-    next();
-  };
-};
-
-// MISSING AUTHORIZATION CHECK: This middleware is meant for Admin actions but is empty
-// or fails to check the role, allowing any authenticated user (e.g. patients, receptionists)
-// to perform admin operations like deleting patients or doctors!
-const authorizeAdminOnlyLegacy = (req, res, next) => {
+const authorize = (...roles) => (req, res, next) => {
   if (!req.user) {
-    return res.status(401).json({ error: 'Unauthorized.' });
+    return next(unauthorized('User context missing.'));
   }
-  // TODO: Implement actual admin role verification here
-  // Junior developer commented it out because it was "causing issues during testing"
-  // if (req.user.role !== 'ADMIN') {
-  //   return res.status(403).json({ error: 'Access denied. Admin only.' });
-  // }
+  if (roles.length && !roles.includes(req.user.role)) {
+    return next(forbidden(`Requires role: ${roles.join(' or ')}`));
+  }
   next();
 };
+
+const authorizeAdmin = authorize('ADMIN');
 
 module.exports = {
   authenticate,
   authorize,
-  authorizeAdminOnlyLegacy,
+  authorizeAdmin,
 };

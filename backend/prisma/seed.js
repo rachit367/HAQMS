@@ -368,6 +368,9 @@ async function main() {
   console.log(`✅ ${appointments.length} appointments seeded`);
 
   // ─── Queue Tokens ──────────────────────────────────────────────────────────
+  const queueDate = new Date();
+  queueDate.setHours(0, 0, 0, 0);
+
   await Promise.all([
     prisma.queueToken.create({
       data: {
@@ -375,6 +378,7 @@ async function main() {
         patientId: patients[0].id,
         doctorId: doctor1.id,
         appointmentId: appointments[0].id,
+        queueDate,
         status: 'CALLING',
       },
     }),
@@ -384,6 +388,7 @@ async function main() {
         patientId: patients[1].id,
         doctorId: doctor1.id,
         appointmentId: appointments[1].id,
+        queueDate,
         status: 'WAITING',
       },
     }),
@@ -392,6 +397,7 @@ async function main() {
         tokenNumber: 3,
         patientId: patients[6].id,
         doctorId: doctor1.id,
+        queueDate,
         status: 'WAITING',
       },
     }),
@@ -401,6 +407,7 @@ async function main() {
         patientId: patients[2].id,
         doctorId: doctor2.id,
         appointmentId: appointments[2].id,
+        queueDate,
         status: 'CALLING',
       },
     }),
@@ -409,6 +416,7 @@ async function main() {
         tokenNumber: 2,
         patientId: patients[8].id,
         doctorId: doctor2.id,
+        queueDate,
         status: 'WAITING',
       },
     }),
@@ -418,6 +426,7 @@ async function main() {
         patientId: patients[7].id,
         doctorId: doctor3.id,
         appointmentId: appointments[5].id,
+        queueDate,
         status: 'WAITING',
       },
     }),

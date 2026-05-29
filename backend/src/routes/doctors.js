@@ -1,107 +1,50 @@
 const express = require('express');
-const { PrismaClient } = require('@prisma/client');
+
+const prisma = require('../lib/prisma');
 const { authenticate } = require('../middleware/auth');
+const { validate } = require('../middleware/validate');
+const { listDoctorsSchema } = require('../validation/schemas');
+const { sendSuccess, asyncHandler, notFound } = require('../lib/http');
 
 const router = express.Router();
-const prisma = new PrismaClient();
 
-// GET /api/doctors
-// Retrieve list of doctors with special search filtering
-// SECURITY BUG: SQL Injection vulnerability in the search parameter!
-// Uses queryRawUnsafe with string concatenation instead of parameterized inputs.
-router.get('/', authenticate, async (req, res) => {
-  try {
-    const { search, specialization } = req.query;
+router.get('/', authenticate, validate(listDoctorsSchema, 'query'), asyncHandler(async (req, res) => {
+  const { search, specialization } = req.query;
 
-    let query = 'SELECT * FROM "Doctor"';
-    const conditions = [];
-
-    if (search) {
-      // Direct string interpolation - VULNERABLE TO SQL INJECTION!
-      // Example exploit: search=House%' UNION SELECT id, email, password, name, role, '09:00', '17:00', 0, id FROM "User" --
-      conditions.push(`name ILIKE '%${search}%'`);
-    }
-
-    if (specialization && specialization !== 'All') {
-      conditions.push(`specialization = '${specialization}'`);
-    }
-
-    if (conditions.length > 0) {
-      query += ' WHERE ' + conditions.join(' AND ');
-    }
-
-    console.log(`[SQL-DEBUG] Executing Query: ${query}`);
-    const doctors = await prisma.$queryRawUnsafe(query);
-
-    // Inconsistent API formatting (directly sending array)
-    res.json(doctors);
-  } catch (error) {
-    // Leaks query syntax details to candidate/attacker
-    res.status(500).json({ error: 'Database execution failure', sqlMessage: error.message });
+  const where = {};
+  if (search) {
+    where.name = { contains: search, mode: 'insensitive' };
   }
-});
-
-// GET /api/doctors/stats
-// Returns aggregation details about available doctors
-// PERFORMANCE BUG: Sequential async calls instead of Promise.all()
-router.get('/stats', authenticate, async (req, res) => {
-  try {
-    const start = Date.now();
-
-    // Independent database calls are run sequentially with await, stalling the event loop
-    const totalDoctors = await prisma.doctor.count();
-    
-    const surgeonsCount = await prisma.doctor.count({
-      where: { department: 'Surgery' },
-    });
-
-    const averageFee = await prisma.doctor.aggregate({
-      _avg: {
-        consultationFee: true,
-      },
-    });
-
-    const highestExperience = await prisma.doctor.aggregate({
-      _max: {
-        experience: true,
-      },
-    });
-
-    const durationMs = Date.now() - start;
-
-    res.json({
-      success: true,
-      data: {
-        total: totalDoctors,
-        surgeons: surgeonsCount,
-        averageFee: Math.round(averageFee._avg.consultationFee || 0),
-        maxExperience: highestExperience._max.experience || 0,
-      },
-      debugInfo: {
-        executionTimeMs: durationMs,
-        notes: 'Loaded sequentially for safety. Optimization needed.'
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+  if (specialization && specialization !== 'All') {
+    where.specialization = specialization;
   }
-});
 
-// GET /api/doctors/:id
-router.get('/:id', authenticate, async (req, res) => {
-  try {
-    const doctor = await prisma.doctor.findUnique({
-      where: { id: req.params.id },
-    });
+  const doctors = await prisma.doctor.findMany({ where, orderBy: { name: 'asc' } });
+  sendSuccess(res, { doctors });
+}));
 
-    if (!doctor) {
-      return res.status(404).json({ error: 'Doctor not found' });
-    }
+router.get('/stats', authenticate, asyncHandler(async (req, res) => {
+  const [total, surgeons, averageFee, highestExperience] = await Promise.all([
+    prisma.doctor.count(),
+    prisma.doctor.count({ where: { department: 'Surgery' } }),
+    prisma.doctor.aggregate({ _avg: { consultationFee: true } }),
+    prisma.doctor.aggregate({ _max: { experience: true } }),
+  ]);
 
-    res.json(doctor);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+  sendSuccess(res, {
+    total,
+    surgeons,
+    averageFee: Math.round(averageFee._avg.consultationFee || 0),
+    maxExperience: highestExperience._max.experience || 0,
+  });
+}));
+
+router.get('/:id', authenticate, asyncHandler(async (req, res) => {
+  const doctor = await prisma.doctor.findUnique({ where: { id: req.params.id } });
+  if (!doctor) {
+    throw notFound('Doctor not found');
   }
-});
+  sendSuccess(res, { doctor });
+}));
 
 module.exports = router;

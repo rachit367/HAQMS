@@ -1,78 +1,69 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Navbar from '@/components/common/Navbar';
-import { Activity, Bell, Monitor, RefreshCw, AlertCircle } from 'lucide-react';
+import { Bell, Monitor, RefreshCw, AlertCircle } from 'lucide-react';
+import { apiFetch } from '@/lib/api';
+
+const POLL_INTERVAL_MS = 3000;
 
 export default function QueueMonitor() {
   const [tokens, setTokens] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
-  // Duplicated config state just to add minor code smell
   const [refreshCount, setRefreshCount] = useState(0);
+  const isMounted = useRef(true);
 
-  // HARDCODED API BASE URL: Duplicated from AuthContext (code duplication smell)
-  const API_BASE_URL = 'http://localhost:5000/api';
-
-  const fetchQueueData = async () => {
+  const fetchQueueData = useCallback(async () => {
     try {
-      // Insecure: Fetches queue without checking credentials (it's a public dashboard, which is fine, 
-      // but it uses the hardcoded API domain)
-      const res = await fetch(`${API_BASE_URL}/queue`);
-      if (!res.ok) {
-        throw new Error('Failed to retrieve active token queue.');
-      }
-      const data = await res.json();
-      setTokens(data);
+      const data = await apiFetch('/queue', { auth: false });
+      if (!isMounted.current) return;
+      setTokens(Array.isArray(data?.tokens) ? data.tokens : []);
       setError('');
     } catch (err) {
-      console.error('Queue poll fetch error:', err);
+      if (!isMounted.current) return;
+      setTokens([]);
       setError(err.message);
     } finally {
-      setLoading(false);
+      if (isMounted.current) setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    // Initial fetch
+    isMounted.current = true;
     fetchQueueData();
 
-    // MEMORY LEAK BUG:
-    // This setInterval has NO cleanup function (does not return clearInterval).
-    // Every time this page is mounted, a new background polling timer is spun up.
-    // If the candidate navigates between Dashboard and Queue multiple times,
-    // dozens of parallel intervals will poll the database, causing memory bloat,
-    // state update crashes on unmounted components, and heavy server load.
     const intervalId = setInterval(() => {
-      console.log(`[POLL] Active Queue Poll #${refreshCount + 1} firing...`);
       fetchQueueData();
       setRefreshCount((prev) => prev + 1);
-    }, 3000);
+    }, POLL_INTERVAL_MS);
 
-    // Junior Developer Note: "Interval created, will run forever to keep dashboard fully synced!"
-    // Missing: return () => clearInterval(intervalId);
-  }, []); // Note that refreshCount dependency is missing too, causing stale closure on log!
+    return () => {
+      isMounted.current = false;
+      clearInterval(intervalId);
+    };
+  }, [fetchQueueData]);
 
-  // Group tokens by doctor
-  const groupedTokens = tokens.reduce((groups, token) => {
-    const docId = token.doctorId;
-    if (!groups[docId]) {
-      groups[docId] = {
-        doctorName: token.doctor.name,
-        specialization: token.doctor.specialization,
-        calling: null,
-        waiting: [],
-      };
-    }
-    
-    if (token.status === 'CALLING') {
-      groups[docId].calling = token;
-    } else if (token.status === 'WAITING') {
-      groups[docId].waiting.push(token);
-    }
-    return groups;
-  }, {});
+  const groupedTokens = useMemo(() => {
+    return tokens.reduce((groups, token) => {
+      if (!token?.doctor || !token?.patient) return groups;
+      const docId = token.doctorId;
+      if (!groups[docId]) {
+        groups[docId] = {
+          doctorName: token.doctor.name,
+          specialization: token.doctor.specialization,
+          calling: null,
+          waiting: [],
+        };
+      }
+      if (token.status === 'CALLING') {
+        groups[docId].calling = token;
+      } else if (token.status === 'WAITING') {
+        groups[docId].waiting.push(token);
+      }
+      return groups;
+    }, {});
+  }, [tokens]);
 
   return (
     <div className="min-h-screen flex flex-col">

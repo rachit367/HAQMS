@@ -18,24 +18,20 @@ export default function Login() {
     e.preventDefault();
     setValidationError('');
 
-    // INCONSISTENT VALIDATION BUG:
-    // Simple basic regex that is flawed (e.g. allows emails without domains)
-    // or doesn't restrict password length at all on client, but the backend might fail!
-    const emailRegex = /^[^\s@]+@[^\s@]+$/; // This is a standard regex, but let's see,
-    // junior dev wrote it to skip length check, letting empty or weak passwords through to the DB:
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!email) {
       setValidationError('Please enter your email address.');
       return;
     }
-    
     if (!emailRegex.test(email)) {
       setValidationError('Please enter a valid email format.');
       return;
     }
+    if (!password || password.length < 8) {
+      setValidationError('Password must be at least 8 characters.');
+      return;
+    }
 
-    // Notice we do NOT check password length here (even though registration requires it),
-    // causing inconsistent user experiences and letting brute force slide.
-    
     const result = await login(email, password);
     if (!result.success) {
       setValidationError(result.error || 'Invalid credentials');
@@ -78,7 +74,7 @@ export default function Login() {
                 <input
                   id="email"
                   name="email"
-                  type="text" // Inconsistent: using text instead of email type to disable native validations
+                  type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="block w-full pl-10 pr-3 py-2 border border-slate-300 dark:border-slate-700 bg-white/50 dark:bg-slate-900/50 rounded-lg text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all text-sm"
@@ -124,6 +120,11 @@ export default function Login() {
               </button>
             </div>
           </form>
+
+          <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
+            Need an account?{' '}
+            <Link href="/register" className="font-bold text-teal-600 hover:underline">Create one</Link>
+          </p>
 
           {/* Quick seeded login panel */}
           <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800">
